@@ -1,0 +1,25 @@
+server:
+  port: ${server-port:8082}
+
+gin:
+  mode: ${GIN_MODE:debug}
+
+dynamodb:
+  local:
+    endpoint: ${dynamodb-endpoint:http://localhost:8000}
+    access_key: ${dynamodb-key:DUMMYIDEXAMPLE}
+    access_key_id: ${dynamodb-id:DUMMYEXAMPLEKEY}
+  region: ${dynamodb-region:ap-east-2}
+
+
+google:
+  oauth2:
+    client_id: ${google_client_id}
+    client_secret: ${google_client_secret}
+
+allow:
+  origins:
+    - ${domain-origin:http://localhost:3000}
+
+log:
+  level: ${log-level:debug}
