@@ -53,6 +53,6 @@ func CorsHandler() gin.HandlerFunc {
 func ValidateSessionHandler() gin.HandlerFunc {
 	return func(context *gin.Context) {
 		service.ValidateSession(context)
-		return
+		// 修正 S1023: 移除冗餘的 return 語句
 	}
 }
