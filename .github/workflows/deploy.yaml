@@ -105,10 +105,21 @@ jobs:
 
       - name: Update Lambda configuration
         run: |
+          echo "Creating environment configuration..."
+          cat > env-config.json << EOF
+          {
+            "Variables": {
+              "GIN_MODE": "release",
+              "ssm_region": "${{ env.AWS_REGION }}",
+              "dynamodb_region": "${{ env.AWS_REGION }}"
+            }
+          }
+          EOF
+
           echo "Updating Lambda function configuration..."
           aws lambda update-function-configuration \
             --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
-            --environment 'Variables={"GIN_MODE":"release","ssm_region":"${{ env.AWS_REGION }}","dynamodb_region":"${{ env.AWS_REGION }}"}'
+            --environment file://env-config.json
 
           echo "Waiting for configuration update to complete..."
           aws lambda wait function-updated \
