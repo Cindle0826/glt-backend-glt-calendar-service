@@ -25,15 +25,19 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Cache Go modules
-        uses: actions/cache@v3
+        uses: actions/cache@v4  # 升級到 v4
         with:
-          path: ~/go/pkg/mod
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
 
       - name: Download dependencies
-        run: go mod download
+        run: |
+          go clean -modcache  # 清理可能的衝突
+          go mod download
 
       - name: Run tests
         run: go test -v ./...
@@ -88,16 +92,34 @@ jobs:
 
       - name: Deploy to AWS Lambda
         run: |
+          echo "Updating Lambda function code..."
           aws lambda update-function-code \
             --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
             --zip-file fileb://function.zip
 
+          echo "Waiting for function update to complete..."
+          aws lambda wait function-updated \
+            --function-name ${{ env.LAMBDA_FUNCTION_NAME }}
+
+          echo "Function code update completed successfully"
+
       - name: Update Lambda configuration
         run: |
+          echo "Updating Lambda function configuration..."
           aws lambda update-function-configuration \
             --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
-            --environment Variables="{
-              GIN_MODE=release,
-              ssm_region=${{ env.AWS_REGION }},
-              dynamodb_region=${{ env.AWS_REGION }}
-            }"
+            --environment Variables="{\"GIN_MODE\":\"release\",\"ssm_region\":\"${{ env.AWS_REGION }}\",\"dynamodb_region\":\"${{ env.AWS_REGION }}\"}"
+
+          echo "Waiting for configuration update to complete..."
+          aws lambda wait function-updated \
+            --function-name ${{ env.LAMBDA_FUNCTION_NAME }}
+
+          echo "Function configuration update completed successfully"
+
+      - name: Verify deployment
+        run: |
+          echo "Verifying Lambda function status..."
+          aws lambda get-function \
+            --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+            --query 'Configuration.[FunctionName,State,LastUpdateStatus]' \
+            --output table
