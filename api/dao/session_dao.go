@@ -49,7 +49,8 @@ func (s *SessionDao) GetSessionsBySessionID(sessionID string) (*model.Session, e
 		return nil, fmt.Errorf("get item error: %w", err)
 	}
 
-	if result.Item == nil || len(result.Item) == 0 {
+	// 修正 S1009: 移除冗餘的 nil 檢查，直接檢查長度即可
+	if len(result.Item) == 0 {
 		return nil, fmt.Errorf("no session found")
 	}
 
