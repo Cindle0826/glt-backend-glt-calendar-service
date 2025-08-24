@@ -50,8 +50,8 @@ func InitDynamoDB() error {
 				},
 			},
 			ProvisionedThroughput: &types.ProvisionedThroughput{
-				ReadCapacityUnits:  aws.Int64(5),
-				WriteCapacityUnits: aws.Int64(5),
+				ReadCapacityUnits:  aws.Int64(1),
+				WriteCapacityUnits: aws.Int64(1),
 			},
 		}
 
