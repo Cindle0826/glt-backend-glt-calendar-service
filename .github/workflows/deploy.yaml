@@ -108,7 +108,7 @@ jobs:
           echo "Updating Lambda function configuration..."
           aws lambda update-function-configuration \
             --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
-            --environment Variables="{\"GIN_MODE\":\"release\",\"ssm_region\":\"${{ env.AWS_REGION }}\",\"dynamodb_region\":\"${{ env.AWS_REGION }}\"}"
+            --environment 'Variables={"GIN_MODE":"release","ssm_region":"${{ env.AWS_REGION }}","dynamodb_region":"${{ env.AWS_REGION }}"}'
 
           echo "Waiting for configuration update to complete..."
           aws lambda wait function-updated \
