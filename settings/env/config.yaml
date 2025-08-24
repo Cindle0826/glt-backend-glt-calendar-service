@@ -1,15 +1,18 @@
 server:
-  port: ${server-port:8082}
+  port: ${server_port:8082}
+
+signin:
+  ttl: ${TTL:24} # 24hr
 
 gin:
   mode: ${GIN_MODE:debug}
 
 dynamodb:
   local:
-    endpoint: ${dynamodb-endpoint:http://localhost:8000}
-    access_key: ${dynamodb-key:DUMMYIDEXAMPLE}
-    access_key_id: ${dynamodb-id:DUMMYEXAMPLEKEY}
-  region: ${dynamodb-region:ap-east-2}
+    endpoint: ${dynamodb_endpoint:http://localhost:8000}
+    access_key: ${dynamodb_key:DUMMYIDEXAMPLE}
+    access_key_id: ${dynamodb_id:DUMMYEXAMPLEKEY}
+  region: ${dynamodb_region:ap-east-2}
 
 
 google:
@@ -19,7 +22,16 @@ google:
 
 allow:
   origins:
-    - ${domain-origin:http://localhost:3000}
+    - ${domain_origin:http://localhost:3000}
 
 log:
-  level: ${log-level:debug}
+  level: ${log_level:debug}
+
+# parameter store
+ssm:
+  enabled: true
+  endpoint: ${ssm_endpoint}
+  region: ${ssm_region:us-east-1}
+  mappings:
+    "google.oauth2.client_id": "/glt/app/client_id"
+    "google.oauth2.client_secret": "/glt/app/client_secret"

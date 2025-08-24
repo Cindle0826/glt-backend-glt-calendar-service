@@ -4,6 +4,10 @@ type ServerConfig struct {
 	Port string
 }
 
+type SigningConfig struct {
+	TTL int
+}
+
 type GinConfig struct {
 	Mode string
 }
@@ -32,6 +36,7 @@ type LogConfig struct {
 
 type Config struct {
 	ServerConfig   ServerConfig
+	SigningConfig  SigningConfig
 	GinConfig      GinConfig
 	DynamodbConfig DynamodbConfig
 	GoogleOAuth2   GoogleOAuth2

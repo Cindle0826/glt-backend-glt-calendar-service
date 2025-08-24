@@ -13,6 +13,7 @@ var logger = log.GetLogger()
 var routeRegistrations = []func(*gin.RouterGroup){
 	controller.Authorize,
 	controller.Calendar,
+	controller.Health,
 }
 
 func RegisterRoutes(route *gin.Engine) {

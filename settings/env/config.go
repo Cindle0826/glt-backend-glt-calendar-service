@@ -1,12 +1,19 @@
 package env
 
 import (
+	"context"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
+	"log"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
+
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 )
 
 // InitConfig reference : https://medium.com/@fdev777/%E5%A5%97%E4%BB%B6%E5%B7%A5%E5%85%B7%E7%AF%87-viper-%E7%92%B0%E5%A2%83%E8%A8%AD%E5%AE%9A%E7%AE%A1%E7%90%86%E4%B8%BB%E6%B5%81%E7%A5%9E%E5%99%A8-24e57ff06246
@@ -21,9 +28,19 @@ func InitConfig() *Config {
 
 	replaceEnvVariablesWithOptionalDefault()
 
+	if mode := viper.GetString("gin.mode"); mode == gin.TestMode || mode == gin.ReleaseMode {
+		if err := loadSSMParameters(context.Background()); err != nil {
+			// 根據需求可改為 panic 或只是 log，這裡選擇 panic 讓部署立即發現錯誤
+			panic(fmt.Sprintf("load ssm parameters failed: %v", err))
+		}
+	}
+
 	config := Config{
 		ServerConfig: ServerConfig{Port: viper.GetString("server.port")},
-		GinConfig:    GinConfig{Mode: viper.GetString("gin.mode")},
+		SigningConfig: SigningConfig{
+			TTL: viper.GetInt("signin.ttl"),
+		},
+		GinConfig: GinConfig{Mode: viper.GetString("gin.mode")},
 		DynamodbConfig: DynamodbConfig{
 			DynamodbLocal: &struct {
 				Endpoint    string
@@ -86,6 +103,8 @@ func replaceEnvVariablesWithOptionalDefault() {
 					viper.Set(key, envValue)
 				} else if defaultValue != "" {
 					viper.Set(key, defaultValue)
+				} else {
+					viper.Set(key, "")
 				}
 			}
 
@@ -118,13 +137,95 @@ func replaceEnvVariablesWithOptionalDefault() {
 	}
 }
 
-func getGinMode(mode string) string {
-	switch mode {
-	case gin.ReleaseMode:
-		return gin.ReleaseMode
-	case gin.TestMode:
-		return gin.TestMode
-	default:
-		return gin.DebugMode
+func loadSSMParameters(ctx context.Context) error {
+	// 從 viper 讀取 mappings
+	mappings := viper.GetStringMapString("ssm.mappings")
+	if len(mappings) == 0 {
+		log.Println("ssm.enabled is true but ssm.mappings is empty, skip")
+		return nil
 	}
+
+	// 反向索引 paramName -> viperKey
+	paramToViper := make(map[string]string, len(mappings))
+	names := make([]string, 0, len(mappings))
+	for viperKey, paramName := range mappings {
+		paramToViper[paramName] = viperKey
+		names = append(names, paramName)
+	}
+
+	// 讀取可選的自訂 endpoint（用於本地模擬器）
+	endpoint := strings.TrimSpace(viper.GetString("ssm.endpoint"))
+
+	// 初始化 AWS client（使用預設 credential/provider）
+	awsRegion := viper.GetString("ssm.region")
+	var cfgOpts []func(*awsconfig.LoadOptions) error
+	if awsRegion != "" {
+		cfgOpts = append(cfgOpts, awsconfig.WithRegion(awsRegion))
+	}
+
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, cfgOpts...)
+	if err != nil {
+		return fmt.Errorf("load aws config: %w", err)
+	}
+
+	// 建立 SSM client，若指定 endpoint，使用自訂 endpoint resolver（新介面）
+	var client *ssm.Client
+	if endpoint != "" {
+		client = ssm.NewFromConfig(awsCfg, func(o *ssm.Options) {
+			o.EndpointResolver = ssmResolver{
+				URL:           endpoint,
+				SigningRegion: awsRegion,
+			}
+		})
+	} else {
+		client = ssm.NewFromConfig(awsCfg)
+	}
+
+	// SSM GetParameters 一次最多 10 個
+	for i := 0; i < len(names); i += 10 {
+		end := i + 10
+		if end > len(names) {
+			end = len(names)
+		}
+		batch := names[i:end]
+
+		out, err := client.GetParameters(ctx, &ssm.GetParametersInput{
+			Names:          batch,
+			WithDecryption: aws.Bool(true),
+		})
+		if err != nil {
+			return fmt.Errorf("ssm GetParameters failed: %w", err)
+		}
+
+		// 設定回 viper
+		for _, p := range out.Parameters {
+			paramName := aws.ToString(p.Name)
+			value := aws.ToString(p.Value)
+			if vkey, ok := paramToViper[paramName]; ok {
+				viper.Set(vkey, value)
+				log.Printf("ssm param loaded: %s -> viper.%s\n", paramName, vkey)
+			}
+		}
+
+		// log 未找到的 parameters（Optional）
+		if len(out.InvalidParameters) > 0 {
+			log.Printf("ssm invalid parameters: %v\n", out.InvalidParameters)
+		}
+	}
+
+	return nil
+}
+
+type ssmResolver struct {
+	URL           string
+	SigningRegion string
+}
+
+// ResolveEndpoint 實作 ssm.EndpointResolverV2
+func (s ssmResolver) ResolveEndpoint(region string, options ssm.EndpointResolverOptions) (aws.Endpoint, error) {
+	// 回傳自訂 endpoint，並提供 SigningRegion（若需要）
+	return aws.Endpoint{
+		URL:           s.URL,
+		SigningRegion: s.SigningRegion,
+	}, nil
 }
