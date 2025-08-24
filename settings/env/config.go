@@ -140,6 +140,7 @@ func replaceEnvVariablesWithOptionalDefault() {
 func loadSSMParameters(ctx context.Context) error {
 	// 從 viper 讀取 mappings
 	mappings := viper.GetStringMapString("ssm.mappings")
+	// 修正 S1009: 直接檢查長度，不需要先檢查是否為 nil
 	if len(mappings) == 0 {
 		log.Println("ssm.enabled is true but ssm.mappings is empty, skip")
 		return nil
@@ -168,14 +169,12 @@ func loadSSMParameters(ctx context.Context) error {
 		return fmt.Errorf("load aws config: %w", err)
 	}
 
-	// 建立 SSM client，若指定 endpoint，使用自訂 endpoint resolver（新介面）
+	// 建立 SSM client，若指定 endpoint，使用自訂 endpoint resolver（使用新的 BaseEndpoint 方式）
 	var client *ssm.Client
 	if endpoint != "" {
 		client = ssm.NewFromConfig(awsCfg, func(o *ssm.Options) {
-			o.EndpointResolver = ssmResolver{
-				URL:           endpoint,
-				SigningRegion: awsRegion,
-			}
+			// 使用新的 BaseEndpoint 方式取代已棄用的 EndpointResolver
+			o.BaseEndpoint = aws.String(endpoint)
 		})
 	} else {
 		client = ssm.NewFromConfig(awsCfg)
@@ -214,18 +213,4 @@ func loadSSMParameters(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-type ssmResolver struct {
-	URL           string
-	SigningRegion string
-}
-
-// ResolveEndpoint 實作 ssm.EndpointResolverV2
-func (s ssmResolver) ResolveEndpoint(region string, options ssm.EndpointResolverOptions) (aws.Endpoint, error) {
-	// 回傳自訂 endpoint，並提供 SigningRegion（若需要）
-	return aws.Endpoint{
-		URL:           s.URL,
-		SigningRegion: s.SigningRegion,
-	}, nil
 }
