@@ -13,6 +13,7 @@ vendor/
 go.work
 
 .idea/
+.junie
 .vscode/
 *.swp
 *.swo
@@ -30,3 +31,5 @@ temp/
 
 bin/
 dist/
+
+MCP_GITHUB_SETUP.md

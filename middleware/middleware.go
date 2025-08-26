@@ -30,6 +30,7 @@ func APIHandler() gin.HandlerFunc {
 	}
 }
 
+// CorsHandler 實際測試後發現，cors 機制在 lambda 環境會失效，需再 API Gateway 手動新增
 func CorsHandler() gin.HandlerFunc {
 	f := zap.String("domain", strings.Join(cfg.HttpAllows.Origins, ", "))
 	logger.Info("Allow Origins", f)
